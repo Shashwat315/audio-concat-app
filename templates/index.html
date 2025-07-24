@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Audio Concatenator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 Audio Concatenator</h1>
+
+    <input type="file" id="audio-files" multiple accept=".mp3,.wav">
+    <ul id="file-list"></ul>
+
+    <label for="pause-duration">Pause between audios (in ms):</label>
+    <input type="number" id="pause-duration" value="1000" min="0">
+
+    <button id="process-btn">Concatenate & Process</button>
+
+    <div id="progress-bar-container">
+      <div id="progress-bar"></div>
+    </div>
+
+    <div id="status-msg"></div>
+    <a id="download-link" href="#" download style="display:none;">⬇ Download Output</a>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('audio-files');
+    const fileList = document.getElementById('file-list');
+    const processBtn = document.getElementById('process-btn');
+    const pauseInput = document.getElementById('pause-duration');
+    const progressBar = document.getElementById('progress-bar');
+    const statusMsg = document.getElementById('status-msg');
+    const downloadLink = document.getElementById('download-link');
+
+    let files = [];
+
+    fileInput.addEventListener('change', () => {
+      files = Array.from(fileInput.files);
+      renderList();
+    });
+
+    function renderList() {
+      fileList.innerHTML = '';
+      files.forEach((file, index) => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        li.setAttribute('draggable', true);
+        li.dataset.index = index;
+
+        li.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', index);
+        });
+
+        li.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          li.classList.add('drag-over');
+        });
+
+        li.addEventListener('dragleave', () => {
+          li.classList.remove('drag-over');
+        });
+
+        li.addEventListener('drop', (e) => {
+          e.preventDefault();
+          li.classList.remove('drag-over');
+          const fromIndex = +e.dataTransfer.getData('text/plain');
+          const toIndex = +li.dataset.index;
+
+          const temp = files[fromIndex];
+          files[fromIndex] = files[toIndex];
+          files[toIndex] = temp;
+          renderList();
+        });
+
+        fileList.appendChild(li);
+      });
+    }
+
+    processBtn.addEventListener('click', () => {
+      if (files.length === 0) return alert("Please select audio files");
+
+      const formData = new FormData();
+      files.forEach(f => formData.append("audio_files[]", f));
+      files.forEach(f => formData.append("order[]", f.name));
+      formData.append("pause_duration", pauseInput.value);
+
+      progressBar.style.width = "0%";
+      statusMsg.textContent = "Processing...";
+      downloadLink.style.display = "none";
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      }).then(res => res.json())
+        .then(data => {
+          progressBar.style.width = "100%";
+          statusMsg.textContent = "✅ Audio processed successfully!";
+          downloadLink.href = data.download_url;
+          downloadLink.style.display = "inline-block";
+        }).catch(() => {
+          statusMsg.textContent = "❌ Something went wrong.";
+        });
+    });
+  </script>
+</body>
+</html>
